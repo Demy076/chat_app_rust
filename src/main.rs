@@ -1,18 +1,25 @@
 use std::{net::ToSocketAddrs, sync::Arc};
 
 use axum::{error_handling::HandleErrorLayer, BoxError, Router};
-use chat_app_rust::{governor::display_error::display_error, prisma_client::client::PrismaClient};
-use tower::{Layer, ServiceBuilder};
-// I import my modules using lib.rs
+use chat_app_rust::{
+    error::default_error::default_error, governor::display_error::display_error,
+    prisma_client::client::PrismaClient, shared::arc_clients::State,
+};
+use tower::ServiceBuilder;
+
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+
 #[tokio::main]
 async fn main() {
-    let client = Arc::new(
-        PrismaClient::_builder()
-            .build()
-            .await
-            .expect("Failed to construct Prisma Client"),
-    );
+    let state = State {
+        prisma_client: Arc::new(
+            PrismaClient::_builder()
+                .build()
+                .await
+                .expect("Failed to construct Prisma Client"),
+        ),
+        redis_client: None,
+    };
 
     let governor = Box::new(
         GovernorConfigBuilder::default()
@@ -29,7 +36,7 @@ async fn main() {
         .next()
         .unwrap();
 
-    let app = Router::new().layer(
+    let app = Router::new().fallback(default_error).layer(
         ServiceBuilder::new()
             .layer(HandleErrorLayer::new(|e: BoxError| async move {
                 display_error(e)

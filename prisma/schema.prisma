@@ -10,13 +10,16 @@ datasource db {
 }
 
 model User {
-  id        Int        @id @default(autoincrement())
-  email     String     @unique
-  name      String?    @unique
-  ip        String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  Messages  Messages[]
+  id         Int        @id @default(autoincrement())
+  email      String     @unique
+  username   String     @unique
+  ip         String
+  token      String     @default(uuid())
+  csrf_token String     @default(uuid())
+  createdAt  DateTime   @default(now())
+  banned     Boolean    @default(false)
+  updatedAt  DateTime   @updatedAt
+  Messages   Messages[]
 }
 
 model Rooms {
