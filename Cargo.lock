@@ -541,6 +541,7 @@ dependencies = [
  "tower",
  "tower-http",
  "tower_governor",
+ "uuid",
  "validator",
 ]
 
