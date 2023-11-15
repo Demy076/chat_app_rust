@@ -6,6 +6,6 @@ use super::handlers::create_user::create_user;
 
 pub fn users_router(state: State) -> Router {
     Router::new()
-        .route("/", post(create_user))
+        .route("/create", post(create_user))
         .with_state(state)
 }

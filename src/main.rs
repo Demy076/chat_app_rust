@@ -4,6 +4,7 @@ use axum::{error_handling::HandleErrorLayer, BoxError, Router};
 use chat_app_rust::{
     error::default_error::default_error, governor::display_error::display_error,
     prisma_client::client::PrismaClient, shared::arc_clients::State,
+    socket::websocket_router::websocket_router, users::users_router::users_router,
 };
 use tower::ServiceBuilder;
 
@@ -18,7 +19,11 @@ async fn main() {
                 .await
                 .expect("Failed to construct Prisma Client"),
         ),
-        redis_client: None,
+        redis_client: Arc::new(
+            rustis::client::Client::connect("redis://localhost:6379")
+                .await
+                .expect("Failed to connect to Redis"),
+        ),
     };
 
     let governor = Box::new(
@@ -36,15 +41,19 @@ async fn main() {
         .next()
         .unwrap();
 
-    let app = Router::new().fallback(default_error).layer(
-        ServiceBuilder::new()
-            .layer(HandleErrorLayer::new(|e: BoxError| async move {
-                display_error(e)
-            }))
-            .layer(GovernorLayer {
-                config: Box::leak(governor),
-            }),
-    );
+    let app = Router::new()
+        .nest("/users", users_router(state.clone()))
+        .nest("/socket", websocket_router(state))
+        .fallback(default_error)
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(|e: BoxError| async move {
+                    display_error(e)
+                }))
+                .layer(GovernorLayer {
+                    config: Box::leak(governor),
+                }),
+        );
     axum::Server::bind(&api_address)
         .serve(app.into_make_service_with_connect_info::<std::net::SocketAddr>())
         .await

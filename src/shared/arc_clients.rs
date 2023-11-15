@@ -6,5 +6,5 @@ use crate::prisma_client::client::PrismaClient;
 pub struct State {
     pub prisma_client: Arc<PrismaClient>,
     // For now sugar coat it with option we'll implement it later
-    pub redis_client: Option<Arc<rustis::client::Client>>,
+    pub redis_client: Arc<rustis::client::Client>,
 }

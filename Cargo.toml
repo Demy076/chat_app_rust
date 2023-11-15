@@ -18,7 +18,7 @@ prisma = "run --bin prisma"
 tower-http = { version = "0.4.4", features = ["cors"] }
 tokio = { version = "1.33.0", features = ["full"] }
 serde = { version = "1.0.192", features = ["derive", "rc" ] }
-axum = { version = "0.6.20", features = ["json", "headers", "macros" ] }
+axum = { version = "0.6.20", features = ["json", "headers", "macros", "ws" ] }
 validator = { version = "0.16.1", features = ["derive"] }
 prisma-client-rust = { git = "https://github.com/Brendonovich/prisma-client-rust", tag = "0.6.9" }
 prisma-client-rust-cli = { git = "https://github.com/Brendonovich/prisma-client-rust", tag = "0.6.9" }
@@ -35,3 +35,5 @@ dotenv = "0.15.0"
 tower_governor = "0.1.0"
 http = "0.2.9"
 rustrict = "0.7.14"
+futures = "0.3.29"
+futures-util = "0.3.29"
