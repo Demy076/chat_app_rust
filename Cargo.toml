@@ -1,0 +1,36 @@
+[package]
+name = "chat_app_rust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+# A bin for prisma.rs
+[[bin]]
+name = "prisma"
+path = "src/prisma.rs"
+
+# ALias
+[alias]
+prisma = "run --bin prisma"
+
+[dependencies]
+tower-http = { version = "0.4.4", features = ["cors"] }
+tokio = { version = "1.33.0", features = ["full"] }
+serde = { version = "1.0.192", features = ["derive", "rc" ] }
+axum = { version = "0.6.20", features = ["json", "headers", "macros" ] }
+validator = { version = "0.16.1", features = ["derive"] }
+prisma-client-rust = { git = "https://github.com/Brendonovich/prisma-client-rust", tag = "0.6.9" }
+prisma-client-rust-cli = { git = "https://github.com/Brendonovich/prisma-client-rust", tag = "0.6.9" }
+password-hash = "0.5.0"
+axum-extra = { version = "0.8.0", features = ["cookie"] }
+axum-client-ip = "0.4.2"
+tower = "0.4.13"
+serde_json = "1.0.108"
+once_cell = "1.18.0"
+chrono = "0.4.31"
+rustis = "0.12.0"
+time = "0.3.30"
+dotenv = "0.15.0"
+tower_governor = "0.1.0"
+http = "0.2.9"
