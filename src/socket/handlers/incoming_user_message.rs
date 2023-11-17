@@ -1,8 +1,8 @@
-use std::{collections::HashSet, fmt::Display, sync::Arc};
+use std::{collections::HashSet, fmt::Display};
 
 use axum::extract::ws::{Message, WebSocket};
 use futures::SinkExt;
-use futures_util::stream::SplitSink;
+use futures_util::{stream::SplitSink, TryFutureExt};
 use rustis::client::PubSubStream;
 
 use crate::{
@@ -48,7 +48,7 @@ pub async fn handle_incoming_message(
     match message.record {
         crate::socket::interfaces::websocket_message::Records::JoinedQueue => match message.mount {
             crate::socket::interfaces::websocket_incoming_message::Mounts::Chat => {
-                if subbed_channels.contains(&message.queue) {
+                if subbed_channels.contains(&format!("chat:{}", message.queue)) {
                     return Ok(());
                 }
                 let queue = message.queue.parse::<i32>();
@@ -146,7 +146,7 @@ pub async fn handle_incoming_message(
         },
         crate::socket::interfaces::websocket_message::Records::LeftQueue => match message.mount {
             crate::socket::interfaces::websocket_incoming_message::Mounts::Chat => {
-                if !subbed_channels.contains(&message.queue) {
+                if !subbed_channels.contains(&format!("chat:{}", message.queue)) {
                     return Ok(());
                 }
                 let queue = message.queue.parse::<i32>();
@@ -179,7 +179,12 @@ pub async fn handle_incoming_message(
                     .iter()
                     .find(|user_room| user_room.user_id == *user_id as i32);
                 if is_participant.is_some() {
-                    pubsub.unsubscribe(&message.queue).await.ok();
+                    let format = format!("chat:{}", chat.id);
+                    pubsub
+                        .unsubscribe(&format)
+                        .await
+                        .map_err(MessageHandlerError::RedisError)?;
+                    subbed_channels.remove(&format);
                     let left_queue = WebSocketMessage {
                         record: crate::socket::interfaces::websocket_message::Records::LeftQueue,
                         queue: message.queue,
@@ -198,7 +203,8 @@ pub async fn handle_incoming_message(
                 Ok(())
             }
             crate::socket::interfaces::websocket_incoming_message::Mounts::User => {
-                if !subbed_channels.contains(&message.queue) {
+                let format = format!("user:{}", user_id);
+                if !subbed_channels.contains(&format) {
                     return Ok(());
                 }
                 let user = prisma_client
@@ -215,7 +221,11 @@ pub async fn handle_incoming_message(
                         ))
                     }
                 };
-                pubsub.unsubscribe(&user.id.to_string()).await.ok();
+                pubsub
+                    .unsubscribe(&format)
+                    .await
+                    .map_err(MessageHandlerError::RedisError)?;
+                subbed_channels.remove(&format);
                 let left_queue = serde_json::to_string(&WebSocketMessage {
                     record: crate::socket::interfaces::websocket_message::Records::LeftQueue,
                     queue: user.id.to_string(),

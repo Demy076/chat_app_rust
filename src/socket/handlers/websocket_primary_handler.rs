@@ -8,7 +8,6 @@ use axum::{
     response::IntoResponse,
     Extension,
 };
-use chrono::format::format;
 
 use crate::socket::interfaces::{
     websocket_error::WebSocketError, websocket_message::WebSocketMessage,
@@ -38,7 +37,7 @@ pub async fn handle_websocket(
     match redis_connection {
         Ok(connection) => {
             let pubsub = connection
-                .subscribe(format!("user:{}", user_id.to_string()))
+                .subscribe(format!("priv_user:{}", user_id.to_string()))
                 .await;
 
             match pubsub {
@@ -46,7 +45,7 @@ pub async fn handle_websocket(
                 Ok(mut pubsub) => {
                     let mut subbed_channels: HashSet<String> = HashSet::new();
                     // Add to pubsub
-                    subbed_channels.insert(format!("user:{}", user_id.to_string()));
+                    subbed_channels.insert(format!("priv_user:{}", user_id.to_string()));
 
                     loop {
                         tokio::select! {
