@@ -44,5 +44,5 @@ impl<'de> Deserialize<'de> for Records {
 pub struct WebSocketMessage {
     pub record: Records,
     pub queue: String,
-    pub message: serde_json::Value,
+    pub data: serde_json::Value,
 }

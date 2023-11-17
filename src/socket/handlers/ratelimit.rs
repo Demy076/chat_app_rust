@@ -15,7 +15,7 @@ pub async fn check_ratelimit(
     match command {
         Some(count) => {
             let count: i64 = count.parse().unwrap();
-            if count >= 5 {
+            if count >= 60 {
                 Ok(false)
             } else {
                 redis_client.hincrby(&key, "count", 1).await?;

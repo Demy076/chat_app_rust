@@ -54,7 +54,7 @@ pub async fn can_create(
         .user()
         .find_first(vec![and(vec![
             user::ip::equals(ip.to_string()),
-            user::banned::equals(false),
+            user::banned::equals(true),
         ])])
         .exec()
         .await?;
@@ -155,13 +155,13 @@ pub async fn create_user(
                 Ok(user) => {
                     if user.is_some() {
                         return Err((
-                            StatusCode::UNPROCESSABLE_ENTITY,
+                            StatusCode::CONFLICT,
                             Json(CreateUserResponse {
                                 success: false,
-                                http_code: 422,
+                                http_code: 409,
                                 validation_errors: None,
                                 csrf_token: None,
-                                error: Some("Username is already taken".to_string()),
+                                error: Some("Username / email is already taken".to_string()),
                             }),
                         ));
                     }

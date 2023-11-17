@@ -28,7 +28,7 @@ async fn main() {
 
     let governor = Box::new(
         GovernorConfigBuilder::default()
-            .per_second(1)
+            .per_millisecond(400)
             .burst_size(50)
             .use_headers()
             .finish()
@@ -39,7 +39,7 @@ async fn main() {
         .to_socket_addrs()
         .expect("Failed to parse API address")
         .next()
-        .unwrap();
+        .unwrap_or(std::net::SocketAddr::from(([127, 0, 0, 1], 4466)));
 
     let app = Router::new()
         .nest("/users", users_router(state.clone()))

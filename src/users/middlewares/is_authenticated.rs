@@ -1,5 +1,3 @@
-use std::{borrow::BorrowMut, rc::Rc};
-
 use axum::{
     extract::State,
     http::Request,
@@ -69,7 +67,12 @@ impl IntoResponse for AuthError {
 
         *response.status_mut() = status;
 
-        if status == StatusCode::UNAUTHORIZED {
+        response.headers_mut().insert(
+            "Content-Type",
+            "application/json; charset=utf-8".parse().unwrap(),
+        );
+
+        if status == StatusCode::UNAUTHORIZED && response.headers().contains_key("Cookie") {
             response.headers_mut().insert(
                 "Set-Cookie",
                 "session=; HttpOnly; Secure; SameSite=Lax".parse().unwrap(),
@@ -101,10 +104,18 @@ pub async fn is_authed<B>(
         .await;
     let user = match user {
         Ok(user) => user,
-        Err(_) => return AuthError::InternalError.into_response(),
+        Err(_) => {
+            if ALLOWED_ROUTES.contains(&request.uri().path()) {
+                return next.run(request).await;
+            }
+            return AuthError::InternalError.into_response();
+        }
     };
 
     if user.is_none() {
+        if ALLOWED_ROUTES.contains(&request.uri().path()) {
+            return next.run(request).await;
+        }
         return AuthError::NotAuthenticated.into_response();
     }
     if ALLOWED_ROUTES.contains(&request.uri().path()) {

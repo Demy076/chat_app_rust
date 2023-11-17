@@ -37,26 +37,20 @@ pub async fn handle_websocket(
     match redis_connection {
         Ok(connection) => {
             let pubsub = connection.subscribe(&user_id.to_string()).await;
+
             match pubsub {
                 Ok(mut pubsub) => loop {
                     tokio::select! {
                         next_msg = ws_receiver.next() => {
                             let ratelimit_check = check_ratelimit(user_id as i64, uuid.clone(), state.redis_client.clone()).await;
                             match ratelimit_check {
-                                Ok(true) => {}
+                                Ok(true) => {
+
+                                }
                                 Ok(false) => {
-                                    continue;
+                                    break;
                                 }
                                 Err(_) => {
-                                    let serialize_ratelimit: WebSocketError = WebSocketError {
-                                        record: crate::socket::interfaces::websocket_message::Records::RateLimit,
-                                        message: serde_json::json!({
-                                            "message": "You are being ratelimited",
-                                            "code": 429,
-                                        }),
-                                    };
-                                    let serialized_ratelimit = serde_json::to_string(&serialize_ratelimit).unwrap();
-                                    ws_sender.send(Message::Text(serialized_ratelimit)).await.unwrap();
                                     break;
                                 }
                             }
@@ -75,21 +69,20 @@ pub async fn handle_websocket(
                                             // Send a message to the client
                                             let serialize_error: WebSocketError = WebSocketError {
                                                 record: crate::socket::interfaces::websocket_message::Records::Message,
-                                                message: serde_json::json!({
+                                                data: serde_json::json!({
                                                     "message": e.to_string(),
                                                     "code": 500,
                                                 }),
                                             };
                                             let serialized_error = serde_json::to_string(&serialize_error).unwrap();
-                                            ws_sender.send(Message::Text(serialized_error)).await.unwrap();
+                                            ws_sender.send(Message::Text(serialized_error)).await.ok();
                                         }
                                     }
                                 }
-                                Some(Err(e)) => {
-                                    println!("Error from websocket: {:?}", e);
+                                Some(Err(_)) => {
+                                    break;
                                 }
                                 None => {
-                                    println!("Websocket connection closed");
                                     break;
                                 }
                             }
@@ -104,20 +97,19 @@ pub async fn handle_websocket(
                                     let message_to_send: WebSocketMessage = WebSocketMessage {
                                         record: crate::socket::interfaces::websocket_message::Records::Message,
                                         queue: channel,
-                                        message: serde_json::json!({
+                                        data: serde_json::json!({
                                             "data": msg,
                                             "code": 200,
                                         }),
                                     };
                                     let serialized_message = serde_json::to_string(&message_to_send).unwrap();
-                                    ws_sender.send(Message::Text(serialized_message)).await.unwrap();
+                                    ws_sender.send(Message::Text(serialized_message)).await.ok();
 
                                 }
-                                Some(Err(e)) => {
-                                    println!("Error from redis: {:?}", e);
+                                Some(Err(_)) => {
+                                    break;
                                 }
                                 None => {
-                                    println!("Redis connection closed");
                                     break;
                                 }
                             }

@@ -3,12 +3,13 @@ use std::{fmt::Display, sync::Arc};
 use axum::extract::ws::{Message, WebSocket};
 use futures::SinkExt;
 use futures_util::stream::SplitSink;
-use prisma_client_rust::operator::and;
 use rustis::client::PubSubStream;
 
 use crate::{
-    prisma_client::client::{banned_users_room, rooms, user, PrismaClient},
-    socket::interfaces::websocket_incoming_message::IncomingWebsocketMessage,
+    prisma_client::client::{rooms, PrismaClient},
+    socket::interfaces::{
+        websocket_incoming_message::IncomingWebsocketMessage, websocket_message::WebSocketMessage,
+    },
 };
 
 pub enum MessageHandlerError {
@@ -16,6 +17,7 @@ pub enum MessageHandlerError {
     JsonError(serde_json::Error),
     AxumError(axum::Error),
     InvalidMessage(String),
+    ValidationError(String),
     ServerError(prisma_client_rust::QueryError),
 }
 
@@ -27,6 +29,7 @@ impl Display for MessageHandlerError {
             MessageHandlerError::AxumError(e) => write!(f, "Axum error: {}", e),
             MessageHandlerError::ServerError(e) => write!(f, "Server error: {}", e),
             MessageHandlerError::InvalidMessage(e) => write!(f, "Invalid message: {}", e),
+            MessageHandlerError::ValidationError(e) => write!(f, "Validation error: {}", e),
         }
     }
 }
@@ -63,67 +66,80 @@ pub async fn handle_incoming_message(
                 let chat = match chat {
                     Some(chat) => chat,
                     None => {
+                        return Err(MessageHandlerError::ValidationError(
+                            "Invalid queue id".to_string(),
+                        ))
+                    }
+                };
+                let is_participant = chat
+                    .users_rooms()
+                    .unwrap()
+                    .iter()
+                    .find(|user_room| user_room.user_id == *user_id as i32);
+                if is_participant.is_some() {
+                    pubsub
+                        .subscribe(&message.queue)
+                        .await
+                        .map_err(MessageHandlerError::RedisError)?;
+                }
+
+                Ok(())
+            }
+            crate::socket::interfaces::websocket_incoming_message::Mounts::User => Ok(()),
+        },
+        crate::socket::interfaces::websocket_message::Records::LeftQueue => match message.mount {
+            crate::socket::interfaces::websocket_incoming_message::Mounts::Chat => {
+                let queue = message.queue.parse::<i32>();
+                let queue = match queue {
+                    Ok(queue) => queue,
+                    Err(_) => {
                         return Err(MessageHandlerError::InvalidMessage(
                             "Invalid queue id".to_string(),
                         ))
                     }
                 };
-                let count_chat = chat.users_rooms.unwrap().len();
-                let count_chat = count_chat as i32;
-                if count_chat > chat.capacity {
-                    return Err(MessageHandlerError::InvalidMessage(
-                        "Queue is full".to_string(),
-                    ));
-                }
-                let is_banned = prisma_client
-                    .banned_users_room()
-                    .find_first(vec![and(vec![
-                        banned_users_room::user_id::equals(*user_id as i32),
-                        banned_users_room::room_id::equals(queue as i32),
-                    ])])
+                let chat = prisma_client
+                    .rooms()
+                    .find_unique(rooms::UniqueWhereParam::IdEquals(queue))
+                    .with(rooms::users_rooms::fetch(vec![]))
                     .exec()
                     .await
                     .map_err(MessageHandlerError::ServerError)?;
-                if is_banned.is_some() {
-                    return Err(MessageHandlerError::InvalidMessage(
-                        "You are banned from this queue".to_string(),
-                    ));
-                }
-                // Insert participant of queue
-                prisma_client
+                let chat = match chat {
+                    Some(chat) => chat,
+                    None => {
+                        return Err(MessageHandlerError::ValidationError(
+                            "Invalid queue id".to_string(),
+                        ))
+                    }
+                };
+                let is_participant = chat
                     .users_rooms()
-                    .create(
-                        user::UniqueWhereParam::IdEquals(*user_id as i32),
-                        rooms::UniqueWhereParam::IdEquals(queue as i32),
-                        vec![],
-                    )
-                    .exec()
-                    .await
-                    .map_err(MessageHandlerError::ServerError)?;
-                pubsub
-                    .subscribe(format!("chat:{}", queue))
-                    .await
-                    .map_err(MessageHandlerError::RedisError)?;
-                let serialize_joined_queue =
-                    crate::socket::interfaces::websocket_message::WebSocketMessage {
-                        record: crate::socket::interfaces::websocket_message::Records::JoinedQueue,
+                    .unwrap()
+                    .iter()
+                    .find(|user_room| user_room.user_id == *user_id as i32);
+                if is_participant.is_some() {
+                    pubsub.unsubscribe(&message.queue).await.ok();
+                    let left_queue = WebSocketMessage {
+                        record: crate::socket::interfaces::websocket_message::Records::LeftQueue,
                         queue: message.queue,
-                        message: serde_json::json!({
-                            "message": "Joined queue",
+                        data: serde_json::json!({
+                            "data": "You left the queue",
                             "code": 200,
                         }),
                     };
-                let serialized_joined_queue = serde_json::to_string(&serialize_joined_queue)
-                    .map_err(MessageHandlerError::JsonError)?;
-                sender
-                    .send(Message::Text(serialized_joined_queue))
-                    .await
-                    .map_err(MessageHandlerError::AxumError)?;
+                    let serialized_message = serde_json::to_string(&left_queue)
+                        .map_err(MessageHandlerError::JsonError)?;
+                    sender
+                        .send(Message::Text(serialized_message))
+                        .await
+                        .map_err(MessageHandlerError::AxumError)?;
+                }
                 Ok(())
             }
             crate::socket::interfaces::websocket_incoming_message::Mounts::User => Ok(()),
         },
-        crate::socket::interfaces::websocket_message::Records::LeftQueue => Ok(()),
+
         crate::socket::interfaces::websocket_message::Records::Message => Ok(()),
         crate::socket::interfaces::websocket_message::Records::RateLimit => Ok(()),
     }

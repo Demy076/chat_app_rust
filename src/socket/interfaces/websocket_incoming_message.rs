@@ -29,5 +29,6 @@ pub struct IncomingWebsocketMessage {
     pub record: Records,
     pub mount: Mounts,
     pub queue: String,
-    pub message: serde_json::Value,
+    #[serde(default)]
+    pub data: Option<serde_json::Value>,
 }
