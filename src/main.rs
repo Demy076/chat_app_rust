@@ -2,9 +2,10 @@ use std::{net::ToSocketAddrs, sync::Arc};
 
 use axum::{error_handling::HandleErrorLayer, BoxError, Router};
 use chat_app_rust::{
-    error::default_error::default_error, governor::display_error::display_error,
-    prisma_client::client::PrismaClient, shared::arc_clients::State,
-    socket::websocket_router::websocket_router, users::users_router::users_router,
+    chat::chat_router::chat_general_router, error::default_error::default_error,
+    governor::display_error::display_error, prisma_client::client::PrismaClient,
+    shared::arc_clients::State, socket::websocket_router::websocket_router,
+    users::users_router::users_router,
 };
 use tower::ServiceBuilder;
 
@@ -43,7 +44,12 @@ async fn main() {
 
     let app = Router::new()
         .nest("/users", users_router(state.clone()))
-        .nest("/socket", websocket_router(state))
+        .nest("/", chat_general_router(state.clone()))
+        .nest("/socket", websocket_router(state.clone()))
+        .nest(
+            "/chat",
+            chat_app_rust::chat::chat_router::chat_general_router(state),
+        )
         .fallback(default_error)
         .layer(
             ServiceBuilder::new()

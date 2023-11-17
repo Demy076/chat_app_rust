@@ -12,6 +12,13 @@ use serde::Serialize;
 
 use crate::{prisma_client::client::user, shared::arc_clients::State as app_state};
 static ALLOWED_ROUTES: Lazy<Vec<&str>> = Lazy::new(|| vec!["/create"]);
+static CSRF_METHODS: Lazy<Vec<axum::http::Method>> = Lazy::new(|| {
+    vec![
+        axum::http::Method::POST,
+        axum::http::Method::PUT,
+        axum::http::Method::DELETE,
+    ]
+});
 
 enum AuthError {
     AlreadyAuthenticated,
@@ -121,6 +128,20 @@ pub async fn is_authed<B>(
     if ALLOWED_ROUTES.contains(&request.uri().path()) {
         return AuthError::AlreadyAuthenticated.into_response();
     }
-    request.extensions_mut().insert(user.unwrap());
+
+    let user = user.unwrap();
+    if CSRF_METHODS.contains(request.method()) && !ALLOWED_ROUTES.contains(&request.uri().path()) {
+        let csrf_header = match request.headers().get("X-CSRF-TOKEN") {
+            Some(csrf_header) => match csrf_header.to_str() {
+                Ok(csrf_header) => csrf_header,
+                Err(_) => return AuthError::NotAuthenticated.into_response(),
+            },
+            None => return AuthError::NotAuthenticated.into_response(),
+        };
+        if csrf_header != user.csrf_token {
+            return AuthError::NotAuthenticated.into_response();
+        }
+    }
+    request.extensions_mut().insert(user);
     next.run(request).await
 }

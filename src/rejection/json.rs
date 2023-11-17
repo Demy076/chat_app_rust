@@ -33,9 +33,10 @@ impl From<JsonRejection> for CustomJsonDataRejection {
 impl IntoResponse for CustomJsonDataRejection {
     fn into_response(self) -> axum::response::Response {
         (
-            StatusCode::BAD_REQUEST,
+            StatusCode::UNPROCESSABLE_ENTITY,
             axum::Json(RejectionResponseError {
-                http_code: 400,
+                success: false,
+                http_code: 422,
                 error: self.message,
             }),
         )

@@ -29,6 +29,7 @@ impl IntoResponse for CustomPathDataRejection {
         (
             StatusCode::BAD_REQUEST,
             axum::Json(RejectionResponseError {
+                success: false,
                 http_code: 400,
                 error: self.message,
             }),

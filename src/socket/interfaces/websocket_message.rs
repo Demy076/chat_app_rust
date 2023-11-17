@@ -9,6 +9,8 @@ pub enum Records {
     JoinedQueue,
     LeftQueue,
     RateLimit,
+    ParticipantJoined,
+    ParticipantLeft,
 }
 
 impl Serialize for Records {
@@ -21,6 +23,8 @@ impl Serialize for Records {
             Records::Message => serializer.serialize_str("msg_g2c_send_message"),
             Records::JoinedQueue => serializer.serialize_str("msg_g2c_joined_queue"),
             Records::LeftQueue => serializer.serialize_str("msg_g2c_left_queue"),
+            Records::ParticipantJoined => serializer.serialize_str("msg_g2c_participant_joined"),
+            Records::ParticipantLeft => serializer.serialize_str("msg_g2c_participant_left"),
         }
     }
 }
