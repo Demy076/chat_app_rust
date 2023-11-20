@@ -100,13 +100,11 @@ pub async fn handle_websocket(
                             next_msg = pubsub.next() => {
                                 match next_msg {
                                     Some(Ok(msg)) => {
-                                        println!("{:?}", msg);
                                         // If it contains priv send to a handler too
                                         let channel = msg.channel;
                                         let channel = String::from_utf8(channel).unwrap();
                                         let msg = msg.payload;
                                         let msg = String::from_utf8(msg).unwrap();
-                                        println!("{:?}", msg);
                                         let msg = serde_json::from_str::<WebSocketMessage>(&msg);
                                             let msg = match msg {
                                                 Ok(msg) => {
