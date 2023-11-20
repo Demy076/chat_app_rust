@@ -72,17 +72,6 @@ pub async fn join_chat(
         }
     };
     let participants = chat.users_rooms.unwrap();
-    if participants.len() >= chat.capacity as usize {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(JoinChatResponse {
-                success: false,
-                http_code: 400,
-                chat: None,
-                error: Some("Chat is full".to_string()),
-            }),
-        );
-    }
     let is_already_participant: bool = participants
         .iter()
         .any(|participant| participant.user_id == user.id);
@@ -94,6 +83,17 @@ pub async fn join_chat(
                 http_code: 409,
                 chat: None,
                 error: Some("Already participant".to_string()),
+            }),
+        );
+    }
+    if participants.len() >= chat.capacity as usize {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(JoinChatResponse {
+                success: false,
+                http_code: 400,
+                chat: None,
+                error: Some("Chat is full".to_string()),
             }),
         );
     }
@@ -165,10 +165,10 @@ pub async fn join_chat(
     state
         .redis_client
         .publish(
-            &chat.id.to_string(),
+            format!("chat:{}", chat.id),
             serde_json::to_string(&WebSocketMessage {
                 record: crate::socket::interfaces::websocket_message::Records::ParticipantJoined,
-                data: serde_json::json!(&chat),
+                data: serde_json::json!({}),
                 queue: chat.id.to_string(),
             })
             .unwrap(),

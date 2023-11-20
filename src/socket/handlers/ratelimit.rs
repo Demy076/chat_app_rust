@@ -24,9 +24,14 @@ pub async fn check_ratelimit(
         }
         None => {
             redis_client.hincrby(&key, "count", 1).await?;
-            redis_client
+            let is_set = redis_client
                 .expire(&key, 60, rustis::commands::ExpireOption::None)
                 .await?;
+            if !is_set {
+                redis_client.del(&key).await?;
+                return Ok(false);
+            }
+
             Ok(true)
         }
     }

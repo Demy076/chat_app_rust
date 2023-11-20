@@ -2,7 +2,7 @@ use std::{collections::HashSet, fmt::Display};
 
 use axum::extract::ws::{Message, WebSocket};
 use futures::SinkExt;
-use futures_util::{stream::SplitSink, TryFutureExt};
+use futures_util::stream::SplitSink;
 use rustis::client::PubSubStream;
 
 use crate::{

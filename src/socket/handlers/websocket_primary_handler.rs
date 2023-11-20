@@ -21,6 +21,7 @@ use rustis::{client::Client, commands::PubSubCommands};
 
 use crate::{
     prisma_client::client::user, shared::arc_clients::State as app_state,
+    socket::handlers::private_message_handler::handle_private_pubsub_message,
     socket::handlers::ratelimit::check_ratelimit,
 };
 
@@ -100,37 +101,37 @@ pub async fn handle_websocket(
                                 match next_msg {
                                     Some(Ok(msg)) => {
                                         println!("{:?}", msg);
+                                        // If it contains priv send to a handler too
                                         let channel = msg.channel;
                                         let channel = String::from_utf8(channel).unwrap();
                                         let msg = msg.payload;
                                         let msg = String::from_utf8(msg).unwrap();
-                                        // Decode json
-                                        let msg = serde_json::from_str::<serde_json::Value>(&msg);
-                                        match msg {
-                                            Ok(msg) => {
-                                                let message_to_send: WebSocketMessage = WebSocketMessage {
-                                                    record: crate::socket::interfaces::websocket_message::Records::Message,
-                                                    queue: channel,
-                                                    data: msg,
-                                                };
-                                                let serialized_message = serde_json::to_string(&message_to_send).unwrap();
-                                                ws_sender.send(Message::Text(serialized_message)).await.ok();
-                                            }
-                                            Err(_) => {
-                                                let message_to_send: WebSocketMessage = WebSocketMessage {
-                                                    record: crate::socket::interfaces::websocket_message::Records::Message,
-                                                    queue: channel,
-                                                    data: serde_json::json!({
-                                                        "message": "Failed to parse message",
-                                                        "code": 500,
-                                                    }),
-
-                                                };
-                                                let serialized_message = serde_json::to_string(&message_to_send).unwrap();
-                                                ws_sender.send(Message::Text(serialized_message)).await.ok();
-                                            }
+                                        let msg = serde_json::from_str::<WebSocketMessage>(&msg);
+                                            let msg = match msg {
+                                                Ok(msg) => {
+                                                    msg
+                                                }
+                                                Err(e) => {
+                                                    let message_to_send: WebSocketMessage = WebSocketMessage {
+                                                        record: crate::socket::interfaces::websocket_message::Records::Message,
+                                                        queue: channel.clone(),
+                                                        data: serde_json::json!({
+                                                            "message": "Failed to parse message",
+                                                            "error": e.to_string(),
+                                                            "code": 500,
+                                                        }),
+                                                    };
+                                                    message_to_send
+                                                }
+                                            };
+                                        if channel.contains("priv") {
+                                            handle_private_pubsub_message(
+                                                msg.clone(),
+                                                &mut pubsub,
+                                                &mut subbed_channels,
+                                            ).await.ok();
                                         }
-
+                                        ws_sender.send(Message::Text(msg.to_string())).await.ok();
                                     }
 
                                     Some(Err(_)) => {

@@ -1,9 +1,10 @@
 use serde::{
     de::{Deserialize, Deserializer},
     ser::{Serialize, Serializer},
-    Serialize as SerializeM,
+    Deserialize as DeserializeM, Serialize as SerializeM,
 };
 
+#[derive(Debug, Clone)]
 pub enum Records {
     Message,
     JoinedQueue,
@@ -36,17 +37,21 @@ impl<'de> Deserialize<'de> for Records {
     {
         let s = String::deserialize(deserializer)?;
         match s.as_str() {
-            "msg_c2g_send_message" => Ok(Records::Message),
             "msg_c2g_subscribe_queue" => Ok(Records::JoinedQueue),
             "msg_c2g_unsubscribe_queue" => Ok(Records::LeftQueue),
             _ => Err(serde::de::Error::custom("expected a valid record")),
         }
     }
 }
-
-#[derive(SerializeM)]
+#[derive(SerializeM, DeserializeM, Clone, Debug)]
 pub struct WebSocketMessage {
     pub record: Records,
     pub queue: String,
     pub data: serde_json::Value,
+}
+
+impl ToString for WebSocketMessage {
+    fn to_string(&self) -> String {
+        serde_json::to_string(self).unwrap()
+    }
 }

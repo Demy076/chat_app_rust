@@ -8,7 +8,7 @@ use rustis::commands::PubSubCommands;
 use serde::Serialize;
 
 use crate::{
-    prisma_client::client::{banned_users_room::room, rooms},
+    prisma_client::client::rooms,
     rejection::path::CustomPathDataRejection,
     shared::arc_clients::State as AppState,
     socket::interfaces::websocket_message::{Records, WebSocketMessage},
@@ -25,12 +25,12 @@ pub struct DeleteChatError {
 
 pub async fn delete_chat(
     State(state): State<AppState>,
-    WithRejection(Path(ChatParams), _): WithRejection<
+    WithRejection(Path(chat_params), _): WithRejection<
         Path<RetrieveChatParams>,
         CustomPathDataRejection,
     >,
 ) -> (StatusCode, Option<Json<DeleteChatError>>) {
-    let chat_id = ChatParams.id;
+    let chat_id = chat_params.id;
     let removal_chat = state
         .prisma_client
         .rooms()
