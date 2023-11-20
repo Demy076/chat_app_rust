@@ -8,3 +8,9 @@ pub struct RetrieveMessageParams {
     #[validate(range(min = 0, message = "Message id invalid"))]
     pub message_id: i32,
 }
+
+#[derive(Deserialize, Validate)]
+pub struct RetrieveSingleMessageParam {
+    #[validate(range(min = 1, message = "Message id invalid"))]
+    pub message_id: i32,
+}

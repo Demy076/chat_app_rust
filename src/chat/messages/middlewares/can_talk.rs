@@ -107,19 +107,19 @@ pub async fn can_talk<B>(
     if participant_room.muted {
         return CanTalkError::Muted.into_response();
     }
-    // let rate_limit = check_ratelimit(
-    //     state.redis_client,
-    //     participant_room.user_id.into(),
-    //     participant_room.room_id.into(),
-    // )
-    // .await;
-    // let rate_limit = match rate_limit {
-    //     Ok(rate_limit) => rate_limit,
-    //     Err(_) => return CanTalkError::InternalError.into_response(),
-    // };
-    // if !rate_limit {
-    //     return CanTalkError::TooFast.into_response();
-    // }
+    let rate_limit = check_ratelimit(
+        state.redis_client,
+        participant_room.user_id.into(),
+        participant_room.room_id.into(),
+    )
+    .await;
+    let rate_limit = match rate_limit {
+        Ok(rate_limit) => rate_limit,
+        Err(_) => return CanTalkError::InternalError.into_response(),
+    };
+    if !rate_limit {
+        return CanTalkError::TooFast.into_response();
+    }
 
     next.run(request).await
 }

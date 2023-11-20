@@ -1,3 +1,4 @@
+pub mod delete_message;
 pub mod interfaces;
 pub mod middlewares;
 pub mod retrieve_messages;

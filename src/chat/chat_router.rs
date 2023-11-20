@@ -9,8 +9,8 @@ use crate::{shared::arc_clients::State, users::middlewares::is_authenticated::is
 
 use super::{
     messages::{
-        middlewares::can_talk::can_talk, retrieve_messages::retrieve_messages,
-        send_message::send_message,
+        delete_message::delete_message, middlewares::can_talk::can_talk,
+        retrieve_messages::retrieve_messages, send_message::send_message,
     },
     middlewares::is_participant::is_participant,
     rooms::{
@@ -41,6 +41,7 @@ pub fn messages_router(state: State) -> Router {
             "/",
             post(send_message).layer(from_fn_with_state(state.clone(), can_talk)),
         )
+        .route("/:message_id", delete(delete_message))
         .layer(
             ServiceBuilder::new()
                 .layer(from_fn_with_state(state.clone(), is_authed))

@@ -12,10 +12,7 @@ use validator::Validate;
 
 use crate::{
     error::validation_error::ValidationError,
-    prisma_client::client::{
-        messages::{self, message},
-        user, users_rooms,
-    },
+    prisma_client::client::{messages, user, users_rooms},
     rejection::path::CustomPathDataRejection,
     shared::arc_clients::State as AppState,
 };
