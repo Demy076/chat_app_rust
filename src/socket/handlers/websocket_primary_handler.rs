@@ -106,6 +106,7 @@ pub async fn handle_websocket(
                                         let channel = String::from_utf8(channel).unwrap();
                                         let msg = msg.payload;
                                         let msg = String::from_utf8(msg).unwrap();
+                                        println!("{:?}", msg);
                                         let msg = serde_json::from_str::<WebSocketMessage>(&msg);
                                             let msg = match msg {
                                                 Ok(msg) => {

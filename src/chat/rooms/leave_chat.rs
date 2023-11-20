@@ -1,15 +1,16 @@
 use axum::{
     extract::{Path, State},
+    http::StatusCode,
     Extension, Json,
 };
 use axum_extra::extract::WithRejection;
-use http::StatusCode;
 use rustis::commands::PubSubCommands;
 use serde::Serialize;
 
 use crate::{
     prisma_client::client::{user, users_rooms},
     rejection::path::CustomPathDataRejection,
+    shared::arc_clients::State as AppState,
 };
 
 use super::interfaces::params_chat::RetrieveChatParams;
@@ -22,22 +23,22 @@ pub struct LeaveChatErrorResponse {
 }
 
 pub async fn leave_chat(
-    State(state): State<crate::shared::arc_clients::State>,
+    State(state): State<AppState>,
     Extension(user): Extension<user::Data>,
     WithRejection(Path(chat_params), _): WithRejection<
         Path<RetrieveChatParams>,
         CustomPathDataRejection,
     >,
-) -> (StatusCode, Option<Json<LeaveChatErrorResponse>>) {
+) -> Result<StatusCode, (StatusCode, Json<LeaveChatErrorResponse>)> {
     if chat_params.id > i32::MAX as u64 {
-        return (
+        return Err((
             StatusCode::BAD_REQUEST,
-            Some(Json(LeaveChatErrorResponse {
+            Json(LeaveChatErrorResponse {
                 success: false,
                 http_code: 400,
                 error: "Chat id cannot exceed 32 bits signed".to_string(),
-            })),
-        );
+            }),
+        ));
     }
     let is_participant = state
         .prisma_client
@@ -53,25 +54,25 @@ pub async fn leave_chat(
             if let Some(participant) = participant {
                 participant
             } else {
-                return (
+                return Err((
                     StatusCode::NOT_FOUND,
-                    Some(Json(LeaveChatErrorResponse {
+                    Json(LeaveChatErrorResponse {
                         success: false,
                         http_code: 404,
-                        error: "Not a participant of this chat".to_string(),
-                    })),
-                );
+                        error: "User is not a participant of this chat".to_string(),
+                    }),
+                ));
             }
         }
         Err(_) => {
-            return (
+            return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Some(Json(LeaveChatErrorResponse {
+                Json(LeaveChatErrorResponse {
                     success: false,
                     http_code: 500,
                     error: "Internal server error".to_string(),
-                })),
-            )
+                }),
+            ));
         }
     };
     // Remove participant from chat
@@ -84,41 +85,47 @@ pub async fn leave_chat(
     match remove_participant {
         Ok(_) => {}
         Err(_) => {
-            return (
+            return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Some(Json(LeaveChatErrorResponse {
+                Json(LeaveChatErrorResponse {
                     success: false,
                     http_code: 500,
                     error: "Internal server error".to_string(),
-                })),
-            )
+                }),
+            ));
         }
     }
-    state.redis_client.publish(
-        format!("chat:{}", chat_params.id),
-        serde_json::to_string(
-            &crate::socket::interfaces::websocket_message::WebSocketMessage {
-                record: crate::socket::interfaces::websocket_message::Records::ParticipantLeft,
-                queue: chat_params.id.to_string(),
-                data: serde_json::json!({
-                    "user_id": user.id,
-                }),
-            },
+    state
+        .redis_client
+        .publish(
+            format!("priv_user:{}", user.id),
+            serde_json::to_string(
+                &crate::socket::interfaces::websocket_message::WebSocketMessage {
+                    record: crate::socket::interfaces::websocket_message::Records::LeftQueue,
+                    queue: format!("chat:{}", chat_params.id),
+                    data: serde_json::json!({}),
+                },
+            )
+            .ok(),
         )
-        .unwrap(),
-    );
-    state.redis_client.publish(
-        format!("priv_user:{}", user.id),
-        serde_json::to_string(
-            &crate::socket::interfaces::websocket_message::WebSocketMessage {
-                record: crate::socket::interfaces::websocket_message::Records::ParticipantLeft,
-                queue: chat_params.id.to_string(),
-                data: serde_json::json!({
-                    "user_id": user.id,
-                }),
-            },
+        .await
+        .ok();
+    state
+        .redis_client
+        .publish(
+            format!("chat:{}", chat_params.id),
+            serde_json::to_string(
+                &crate::socket::interfaces::websocket_message::WebSocketMessage {
+                    record: crate::socket::interfaces::websocket_message::Records::ParticipantLeft,
+                    queue: format!("chat:{}", chat_params.id),
+                    data: serde_json::json!({
+                        "user_id": user.id,
+                    }),
+                },
+            )
+            .ok(),
         )
-        .unwrap(),
-    );
-    (StatusCode::NO_CONTENT, None)
+        .await
+        .ok();
+    Ok(StatusCode::NO_CONTENT)
 }

@@ -34,6 +34,17 @@ pub async fn join_chat(
         CustomPathDataRejection,
     >,
 ) -> (StatusCode, Json<JoinChatResponse>) {
+    if chat_param.id > i32::MAX as u64 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(JoinChatResponse {
+                success: false,
+                http_code: 400,
+                chat: None,
+                error: Some("Chat id cannot exceed 32 bits signed".to_string()),
+            }),
+        );
+    }
     let chat = state
         .prisma_client
         .rooms()

@@ -39,6 +39,12 @@ impl<'de> Deserialize<'de> for Records {
         match s.as_str() {
             "msg_c2g_subscribe_queue" => Ok(Records::JoinedQueue),
             "msg_c2g_unsubscribe_queue" => Ok(Records::LeftQueue),
+            "msg_g2c_send_message" => Ok(Records::Message),
+            "msg_g2c_participant_joined" => Ok(Records::ParticipantJoined),
+            "msg_g2c_participant_left" => Ok(Records::ParticipantLeft),
+            "msg_g2c_joined_queue" => Ok(Records::JoinedQueue),
+            "msg_g2c_left_queue" => Ok(Records::LeftQueue),
+
             _ => Err(serde::de::Error::custom("expected a valid record")),
         }
     }
