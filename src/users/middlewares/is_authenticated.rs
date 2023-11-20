@@ -17,6 +17,7 @@ static CSRF_METHODS: Lazy<Vec<axum::http::Method>> = Lazy::new(|| {
         axum::http::Method::POST,
         axum::http::Method::PUT,
         axum::http::Method::DELETE,
+        axum::http::Method::PATCH,
     ]
 });
 

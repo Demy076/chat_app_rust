@@ -125,12 +125,31 @@ pub async fn handle_websocket(
                                                     message_to_send
                                                 }
                                             };
-                                        if channel.contains("priv") {
-                                            handle_private_pubsub_message(
-                                                msg.clone(),
+                                        if channel == format!("priv_user:{}", user_id) {
+                                            let handler = handle_private_pubsub_message(
+                                                &msg,
                                                 &mut pubsub,
                                                 &mut subbed_channels,
-                                            ).await.ok();
+                                            ).await;
+                                            match handler {
+                                                Ok(true) => {}
+                                                Ok(false) => {
+                                                    continue;
+                                                }
+                                                Err(e) => {
+                                                    let message_to_send: WebSocketMessage = WebSocketMessage {
+                                                        record: crate::socket::interfaces::websocket_message::Records::Message,
+                                                        queue: channel.clone(),
+                                                        data: serde_json::json!({
+                                                            "message": "Failed to execute private handler",
+                                                            "error": e.to_string(),
+                                                            "code": 500,
+                                                        }),
+                                                    };
+                                                    let serialized_message = serde_json::to_string(&message_to_send).unwrap();
+                                                    ws_sender.send(Message::Text(serialized_message)).await.ok();
+                                                }
+                                            }
                                         }
                                         ws_sender.send(Message::Text(msg.to_string())).await.ok();
                                     }

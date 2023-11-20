@@ -110,22 +110,26 @@ pub async fn leave_chat(
         )
         .await
         .ok();
-    state
-        .redis_client
-        .publish(
-            format!("chat:{}", chat_params.id),
-            serde_json::to_string(
-                &crate::socket::interfaces::websocket_message::WebSocketMessage {
-                    record: crate::socket::interfaces::websocket_message::Records::ParticipantLeft,
-                    queue: format!("chat:{}", chat_params.id),
-                    data: serde_json::json!({
-                        "user_id": user.id,
-                    }),
-                },
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        state
+            .redis_client
+            .publish(
+                format!("chat:{}", chat_params.id),
+                serde_json::to_string(
+                    &crate::socket::interfaces::websocket_message::WebSocketMessage {
+                        record:
+                            crate::socket::interfaces::websocket_message::Records::ParticipantLeft,
+                        queue: format!("chat:{}", chat_params.id),
+                        data: serde_json::json!({
+                            "user_id": user.id,
+                        }),
+                    },
+                )
+                .ok(),
             )
-            .ok(),
-        )
-        .await
-        .ok();
+            .await
+            .ok();
+    });
     Ok(StatusCode::NO_CONTENT)
 }

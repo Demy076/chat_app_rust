@@ -23,7 +23,7 @@ async fn main() {
         redis_client: Arc::new(
             rustis::client::Client::connect("redis://localhost:6379")
                 .await
-                .expect("Failed to connect to Redis"),
+                .expect("Failed to construct Redis Client"),
         ),
     };
 

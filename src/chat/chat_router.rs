@@ -3,12 +3,20 @@ use axum::{
     routing::{delete, get, patch, post},
     Router,
 };
+use tower::ServiceBuilder;
 
 use crate::{shared::arc_clients::State, users::middlewares::is_authenticated::is_authed};
 
-use super::rooms::{
-    create_chat::create_chat, join_chat::join_chat, leave_chat::leave_chat,
-    retrieve_chat::retrieve_chat,
+use super::{
+    messages::{
+        middlewares::can_talk::can_talk, retrieve_messages::retrieve_messages,
+        send_message::send_message,
+    },
+    middlewares::is_participant::is_participant,
+    rooms::{
+        create_chat::create_chat, join_chat::join_chat, leave_chat::leave_chat,
+        retrieve_chat::retrieve_chat,
+    },
 };
 
 pub fn chat_general_router(state: State) -> Router {
@@ -27,5 +35,16 @@ pub fn chatroom_router(state: State) -> Router {
 }
 
 pub fn messages_router(state: State) -> Router {
-    Router::new().with_state(state)
+    Router::new()
+        .route("/:limit/:message_id", get(retrieve_messages))
+        .route(
+            "/",
+            post(send_message).layer(from_fn_with_state(state.clone(), can_talk)),
+        )
+        .layer(
+            ServiceBuilder::new()
+                .layer(from_fn_with_state(state.clone(), is_authed))
+                .layer(from_fn_with_state(state.clone(), is_participant)),
+        )
+        .with_state(state)
 }

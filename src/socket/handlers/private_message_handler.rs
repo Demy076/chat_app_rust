@@ -7,10 +7,10 @@ use crate::socket::interfaces::websocket_message::WebSocketMessage;
 use super::incoming_user_message::MessageHandlerError;
 
 pub async fn handle_private_pubsub_message(
-    incoming_message: WebSocketMessage,
+    incoming_message: &WebSocketMessage,
     pubsub: &mut PubSubStream,
     subbed_channels: &mut HashSet<String>,
-) -> Result<(), MessageHandlerError> {
+) -> Result<bool, MessageHandlerError> {
     match incoming_message.record {
         crate::socket::interfaces::websocket_message::Records::LeftQueue => {
             if subbed_channels.contains(&incoming_message.queue) {
@@ -19,10 +19,10 @@ pub async fn handle_private_pubsub_message(
                     .unsubscribe(&incoming_message.queue)
                     .await
                     .map_err(MessageHandlerError::RedisError)?;
-                return Ok(());
+                return Ok(true);
             }
-            Ok(())
+            return Ok(false);
         }
-        _ => Ok(()),
+        _ => Ok(true),
     }
 }
