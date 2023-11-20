@@ -47,6 +47,7 @@ pub async fn leave_chat(
             users_rooms::user_id::equals(user.id),
             users_rooms::room_id::equals(chat_params.id as i32),
         ])
+        .with(users_rooms::room::fetch())
         .exec()
         .await;
     let is_participant = match is_participant {
@@ -75,6 +76,17 @@ pub async fn leave_chat(
             ));
         }
     };
+    let is_owner = is_participant.room.unwrap().user_id == user.id;
+    if is_owner {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(LeaveChatErrorResponse {
+                success: false,
+                http_code: 403,
+                error: "Owner cannot leave chat consider deleting the chat".to_string(),
+            }),
+        ));
+    }
     // Remove participant from chat
     let remove_participant = state
         .prisma_client
