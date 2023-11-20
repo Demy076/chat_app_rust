@@ -60,7 +60,8 @@ pub async fn leave_chat(
                     Json(LeaveChatErrorResponse {
                         success: false,
                         http_code: 404,
-                        error: "User is not a participant of this chat".to_string(),
+                        error: "User is not a participant of this chat or transferring ownership"
+                            .to_string(),
                     }),
                 ));
             }
