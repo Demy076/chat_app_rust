@@ -1,6 +1,6 @@
 use crate::{
     error::validation_error::ValidationError,
-    prisma_client::client::{banned_users_room, users_rooms},
+    prisma_client::client::{banned_users_room, user, users_rooms},
     rejection::path::CustomPathDataRejection,
     shared::arc_clients::State as AppState,
     socket::interfaces::websocket_message::WebSocketMessage,
@@ -8,7 +8,7 @@ use crate::{
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
 use axum_extra::extract::WithRejection;
 use rustis::commands::PubSubCommands;
@@ -28,16 +28,29 @@ pub struct BanUserResponse {
 
 #[derive(Deserialize, Validate)]
 pub struct BanUserParams {
-    #[validate(range(min = 2, message = "user_id must be greater than 0"))]
+    #[validate(range(min = 1, message = "user_id must be greater than 0"))]
     pub user_id: i32,
 }
 
 pub async fn ban_user(
     State(state): State<AppState>,
+    Extension(user): Extension<user::Data>,
     WithRejection(Path(params), _): WithRejection<Path<BanUserParams>, CustomPathDataRejection>,
 ) -> (StatusCode, Json<BanUserResponse>) {
     match params.validate() {
         Ok(_) => {
+            if params.user_id == user.id {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(BanUserResponse {
+                        success: false,
+                        http_code: 400,
+                        message: None,
+                        error: Some("You cannot ban yourself (owner)".to_string()),
+                        validation_errors: None,
+                    }),
+                );
+            }
             let user = state
                 .prisma_client
                 .users_rooms()
@@ -124,7 +137,7 @@ pub async fn ban_user(
                     .publish(
                         format!("priv_user:{}", user.room_id),
                         serde_json::to_string(&WebSocketMessage {
-                            record: crate::socket::interfaces::websocket_message::Records::ParticipantLeft,
+                            record: crate::socket::interfaces::websocket_message::Records::LeftQueue,
                             queue: format!("priv_user:{}", user.room_id),
                             data: serde_json::json!({}),
                         }).unwrap(),
