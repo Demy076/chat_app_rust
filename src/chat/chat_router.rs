@@ -15,8 +15,11 @@ use super::{
     },
     middlewares::{is_owner::is_owner, is_participant::is_participant},
     rooms::{
-        create_chat::create_chat, join_chat::join_chat, leave_chat::leave_chat,
-        moderation::ban_user::ban_user, retrieve_chat::retrieve_chat,
+        create_chat::create_chat,
+        join_chat::join_chat,
+        leave_chat::leave_chat,
+        moderation::{ban_user::ban_user, unban_user::unban_user},
+        retrieve_chat::retrieve_chat,
     },
 };
 
@@ -56,6 +59,7 @@ pub fn messages_router(state: State) -> Router {
 pub fn moderation_router(state: State) -> Router {
     Router::new()
         .route("/:user_id", post(ban_user))
+        .route("/:user_id", delete(unban_user))
         .layer(
             ServiceBuilder::new()
                 .layer(from_fn_with_state(state.clone(), is_authed))

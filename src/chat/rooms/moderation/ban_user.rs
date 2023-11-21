@@ -130,7 +130,7 @@ pub async fn ban_user(
                 .delete(users_rooms::UniqueWhereParam::IdEquals(user.id))
                 .exec()
                 .await;
-            let delete_user = match delete_user {
+            match delete_user {
                 Ok(_) => {}
                 Err(_) => {
                     return (
