@@ -43,7 +43,7 @@ impl IntoResponse for ParticipantError {
                 }),
             ),
             ParticipantError::NotParticipant => (
-                StatusCode::BAD_REQUEST,
+                StatusCode::UNAUTHORIZED,
                 Json(ParticipantErrorResponse {
                     success: false,
                     http_code: 400,

@@ -28,7 +28,7 @@ pub struct BanUserResponse {
 
 #[derive(Deserialize, Validate)]
 pub struct BanUserParams {
-    #[validate(range(min = 1, message = "user_id must be greater than 0"))]
+    #[validate(range(min = 2, message = "user_id must be greater than 0"))]
     pub user_id: i32,
 }
 

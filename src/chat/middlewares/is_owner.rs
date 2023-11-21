@@ -22,11 +22,11 @@ pub struct ParticipantErrorResponse {
 impl IntoResponse for ParticipantError {
     fn into_response(self) -> axum::response::Response {
         let error_message: String = match self {
-            ParticipantError::NotOwner => "Not A Participant".to_string(),
+            ParticipantError::NotOwner => "Not the owner".to_string(),
         };
         match self {
             ParticipantError::NotOwner => (
-                StatusCode::BAD_REQUEST,
+                StatusCode::UNAUTHORIZED,
                 Json(ParticipantErrorResponse {
                     success: false,
                     http_code: 400,
