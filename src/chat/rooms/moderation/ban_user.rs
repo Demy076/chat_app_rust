@@ -67,7 +67,7 @@ pub async fn ban_user(
                                 success: false,
                                 http_code: 404,
                                 message: None,
-                                error: Some("User not found".to_string()),
+                                error: Some("User is not a participant of this chat".to_string()),
                                 validation_errors: None,
                             }),
                         );
