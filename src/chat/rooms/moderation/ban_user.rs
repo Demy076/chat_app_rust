@@ -162,7 +162,7 @@ pub async fn ban_user(
                     state
                     .redis_client
                     .publish(
-                        format!("priv_user:{}", user.room_id),
+                        format!("priv_user:{}", user.user_id),
                         serde_json::to_string(&WebSocketMessage {
                             record: crate::socket::interfaces::websocket_message::Records::LeftQueue,
                             queue: format!("priv_user:{}", user.room_id),
