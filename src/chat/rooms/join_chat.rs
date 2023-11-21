@@ -8,7 +8,7 @@ use rustis::commands::PubSubCommands;
 use serde::Serialize;
 
 use crate::{
-    prisma_client::client::{rooms, user, users_rooms},
+    prisma_client::client::{banned_users_room, rooms, user, users_rooms},
     rejection::path::CustomPathDataRejection,
     shared::arc_clients::State as AppState,
     socket::interfaces::websocket_message::WebSocketMessage,
@@ -82,6 +82,40 @@ pub async fn join_chat(
             );
         }
     };
+    let is_banned = state
+        .prisma_client
+        .banned_users_room()
+        .find_first(vec![
+            banned_users_room::user_id::equals(user.id),
+            banned_users_room::room_id::equals(chat.id),
+        ])
+        .exec()
+        .await;
+    let is_banned = match is_banned {
+        Ok(banned) => banned.is_some(),
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(JoinChatResponse {
+                    success: false,
+                    http_code: 500,
+                    chat: None,
+                    error: Some("Internal Server Error".to_string()),
+                }),
+            );
+        }
+    };
+    if is_banned {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(JoinChatResponse {
+                success: false,
+                http_code: 403,
+                chat: None,
+                error: Some("You are banned from this room.".to_string()),
+            }),
+        );
+    }
     let participants = chat.users_rooms.unwrap();
     let is_already_participant: bool = participants
         .iter()
