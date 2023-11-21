@@ -1,6 +1,6 @@
 use crate::{
     error::validation_error::ValidationError,
-    prisma_client::client::{banned_users_room, user, users_rooms},
+    prisma_client::client::{banned_users_room, rooms, user, users_rooms},
     rejection::path::CustomPathDataRejection,
     shared::arc_clients::State as AppState,
     socket::interfaces::websocket_message::WebSocketMessage,
@@ -130,7 +130,34 @@ pub async fn ban_user(
                 .delete(users_rooms::UniqueWhereParam::IdEquals(user.id))
                 .exec()
                 .await;
-            match delete_user {
+            let delete_user = match delete_user {
+                Ok(_) => {}
+                Err(_) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(BanUserResponse {
+                            success: false,
+                            http_code: 500,
+                            message: None,
+                            error: Some("Internal server error".to_string()),
+                            validation_errors: None,
+                        }),
+                    );
+                }
+            };
+            // Insert ban
+            let insert_ban = state
+                .prisma_client
+                .banned_users_room()
+                .create(
+                    user::UniqueWhereParam::IdEquals(user.user_id),
+                    rooms::UniqueWhereParam::IdEquals(user.room_id),
+                    vec![],
+                )
+                .exec()
+                .await;
+
+            match insert_ban {
                 Ok(_) => {
                     state
                     .redis_client
