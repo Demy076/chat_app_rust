@@ -75,6 +75,7 @@ pub async fn is_participant<B>(
             users_rooms::user_id::equals(user.id),
             users_rooms::room_id::equals(chat_params.id as i32),
         ])
+        .with(users_rooms::room::fetch())
         .exec()
         .await;
     let is_participant = match is_participant {

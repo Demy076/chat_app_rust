@@ -43,6 +43,7 @@ pub async fn retrieve_message(
                 .prisma_client
                 .messages()
                 .find_unique(messages::UniqueWhereParam::IdEquals(message_id))
+                .with(messages::user::fetch())
                 .exec()
                 .await;
             let message = match message {

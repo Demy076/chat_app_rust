@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -10,7 +12,7 @@ use validator::Validate;
 
 use crate::{
     error::validation_error::ValidationError,
-    prisma_client::client::{messages, users_rooms},
+    prisma_client::client::{messages, user, users_rooms},
     rejection::path::CustomPathDataRejection,
     shared::arc_clients::State as AppState,
 };
@@ -25,6 +27,7 @@ pub struct Sender {
 
 #[derive(Serialize)]
 pub struct MessageReponse {
+    pub message_id: i32,
     pub message: String,
     pub sender: Sender,
 }
@@ -33,6 +36,7 @@ impl From<messages::Data> for MessageReponse {
     fn from(value: messages::Data) -> Self {
         let user = value.user.unwrap();
         Self {
+            message_id: value.id,
             message: value.message,
             sender: Sender {
                 id: user.id,
@@ -49,6 +53,8 @@ pub struct MessagesResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub messages: Option<Vec<MessageReponse>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest_id: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub validation_errors: Option<Vec<ValidationError>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -64,38 +70,34 @@ pub async fn retrieve_messages(
 ) -> (StatusCode, Json<MessagesResponse>) {
     match params.validate() {
         Ok(_) => {
-            // If message id is 0, we want to retrieve the last messages
-            let messages_count = state
-                .prisma_client
-                .messages()
-                .count(vec![messages::room_id::equals(participant.room_id)])
-                .exec()
-                .await;
-            // Retrieve last message in database
+            let (limit, message_id) = (params.limit, params.message_id);
             let messages: Result<Vec<messages::Data>, QueryError>;
-            if params.message_id == 0 {
+
+            if message_id == 0 {
+                // Init curso
                 messages = state
                     .prisma_client
                     .messages()
                     .find_many(vec![messages::room_id::equals(participant.room_id)])
-                    .order_by(messages::OrderByParam::Id(
-                        prisma_client_rust::Direction::Asc,
+                    .order_by(messages::OrderByParam::CreatedAt(
+                        prisma_client_rust::Direction::Desc,
                     ))
-                    .with(messages::user::fetch())
+                    .take(limit as i64)
                     .exec()
                     .await;
             } else {
                 messages = state
                     .prisma_client
                     .messages()
-                    .find_many(vec![
-                        messages::room_id::equals(participant.room_id),
-                        messages::id::lt(params.message_id),
-                    ])
-                    .take(params.limit as i64)
-                    .with(messages::user::fetch())
+                    .find_many(vec![messages::room_id::equals(participant.room_id)])
+                    .skip(1)
+                    .cursor(messages::id::equals(message_id))
+                    .take(limit as i64)
+                    .order_by(messages::OrderByParam::CreatedAt(
+                        prisma_client_rust::Direction::Desc,
+                    ))
                     .exec()
-                    .await;
+                    .await
             }
             let messages = match messages {
                 Ok(messages) => {
@@ -105,8 +107,9 @@ pub async fn retrieve_messages(
                             Json(MessagesResponse {
                                 success: false,
                                 http_code: 404,
-                                validation_errors: None,
                                 error: Some("No messages found".to_string()),
+                                latest_id: None,
+                                validation_errors: None,
                                 messages: None,
                             }),
                         );
@@ -119,27 +122,74 @@ pub async fn retrieve_messages(
                         Json(MessagesResponse {
                             success: false,
                             http_code: 500,
-                            validation_errors: None,
                             error: Some("Internal server error".to_string()),
+                            latest_id: None,
+                            validation_errors: None,
                             messages: None,
                         }),
                     )
                 }
             };
+
+            let mut unique_user_ids = HashSet::new();
+            for message in &messages {
+                unique_user_ids.insert(message.user_id);
+            }
+
+            let users = state
+                .prisma_client
+                .user()
+                .find_many(vec![user::id::in_vec(
+                    unique_user_ids.into_iter().collect(),
+                )])
+                .exec()
+                .await;
+            let users = match users {
+                Ok(users) => {
+                    // Box every data
+                    let users = users
+                        .into_iter()
+                        .map(|u| Box::new(u))
+                        .collect::<Vec<Box<user::Data>>>();
+                    users
+                }
+                Err(_) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(MessagesResponse {
+                            success: false,
+                            http_code: 500,
+                            error: Some("Internal server error".to_string()),
+                            latest_id: None,
+                            validation_errors: None,
+                            messages: None,
+                        }),
+                    )
+                }
+            };
+            // Put user into messages
+
+            let latest_id = messages.iter().last().unwrap().id;
             let messages = messages
                 .into_iter()
-                .map(|message| MessageReponse::from(message))
-                .collect();
-            (
+                .filter_map(|mut m| {
+                    let user = users.iter().find(|u| u.id == m.user_id);
+                    m.user = user.cloned();
+                    Some(m)
+                })
+                .map(|m| MessageReponse::from(m))
+                .collect::<Vec<MessageReponse>>();
+            return (
                 StatusCode::OK,
                 Json(MessagesResponse {
                     success: true,
                     http_code: 200,
+                    messages: Some(messages),
+                    latest_id: Some(latest_id),
                     validation_errors: None,
                     error: None,
-                    messages: Some(messages),
                 }),
-            )
+            );
         }
         Err(validation_errors) => {
             let validation_errors =
@@ -165,6 +215,7 @@ pub async fn retrieve_messages(
                     success: false,
                     http_code: 422,
                     validation_errors: Some(validation_errors.collect()),
+                    latest_id: None,
                     error: None,
                     messages: None,
                 }),
