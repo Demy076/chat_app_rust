@@ -163,11 +163,14 @@ pub async fn ban_user(
                     .redis_client
                     .publish(
                         format!("priv_user:{}", user.user_id),
-                        serde_json::to_string(&WebSocketMessage {
-                            record: crate::socket::interfaces::websocket_message::Records::LeftQueue,
-                            queue: format!("priv_user:{}", user.room_id),
-                            data: serde_json::json!({}),
-                        }).unwrap(),
+                        serde_json::to_string(
+                            &crate::socket::interfaces::websocket_message::WebSocketMessage {
+                                record: crate::socket::interfaces::websocket_message::Records::LeftQueue,
+                                queue: format!("chat:{}", user.room_id),
+                                data: serde_json::json!({}),
+                            },
+                        )
+                        .ok(),
                     )
                     .await
                     .ok();

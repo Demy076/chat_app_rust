@@ -8,12 +8,16 @@ use tower::ServiceBuilder;
 use crate::{shared::arc_clients::State, users::middlewares::is_authenticated::is_authed};
 
 use super::{
+    invites::invite_user::invite_user,
     messages::{
         delete_message::delete_message, middlewares::can_talk::can_talk,
         retrieve_message::retrieve_message, retrieve_messages::retrieve_messages,
         send_message::send_message,
     },
-    middlewares::{is_owner::is_owner, is_participant::is_participant},
+    middlewares::{
+        is_owner::is_owner,
+        is_participant::{self, is_participant},
+    },
     rooms::{
         create_chat::create_chat,
         join_chat::join_chat,
@@ -36,7 +40,8 @@ pub fn chatroom_router(state: State) -> Router {
         .layer(from_fn_with_state(state.clone(), is_authed))
         .with_state(state.clone())
         .nest("/chat-:id/messages", messages_router(state.clone()))
-        .nest("/chat-:id/moderation", moderation_router(state))
+        .nest("/chat-:id/moderation", moderation_router(state.clone()))
+        .nest("/chat-:id/invites", invites_router(state))
 }
 
 pub fn messages_router(state: State) -> Router {
@@ -65,6 +70,17 @@ pub fn moderation_router(state: State) -> Router {
                 .layer(from_fn_with_state(state.clone(), is_authed))
                 .layer(from_fn_with_state(state.clone(), is_participant))
                 .layer(from_fn_with_state(state.clone(), is_owner)), // Is owner layer
+        )
+        .with_state(state)
+}
+
+pub fn invites_router(state: State) -> Router {
+    Router::new()
+        .route("/", post(invite_user))
+        .layer(
+            ServiceBuilder::new()
+                .layer(from_fn_with_state(state.clone(), is_authed))
+                .layer(from_fn_with_state(state.clone(), is_participant)),
         )
         .with_state(state)
 }
