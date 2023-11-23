@@ -1,6 +1,6 @@
 use axum::{
     middleware::from_fn_with_state,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch, post, put},
     Router,
 };
 use tower::ServiceBuilder;
@@ -8,7 +8,10 @@ use tower::ServiceBuilder;
 use crate::{shared::arc_clients::State, users::middlewares::is_authenticated::is_authed};
 
 use super::{
-    invites::invite_user::invite_user,
+    invites::{
+        invite_user::invite_user, response_invite::invite_response,
+        retrieve_invite::retrieve_invite,
+    },
     messages::{
         delete_message::delete_message, middlewares::can_talk::can_talk,
         retrieve_message::retrieve_message, retrieve_messages::retrieve_messages,
@@ -76,11 +79,12 @@ pub fn moderation_router(state: State) -> Router {
 
 pub fn invites_router(state: State) -> Router {
     Router::new()
-        .route("/", post(invite_user))
-        .layer(
-            ServiceBuilder::new()
-                .layer(from_fn_with_state(state.clone(), is_authed))
-                .layer(from_fn_with_state(state.clone(), is_participant)),
+        .route(
+            "/",
+            post(invite_user).layer(from_fn_with_state(state.clone(), is_participant)),
         )
+        .route("/:invite_id", get(retrieve_invite))
+        .route("/:invite_id", put(invite_response))
+        .layer(ServiceBuilder::new().layer(from_fn_with_state(state.clone(), is_authed)))
         .with_state(state)
 }
