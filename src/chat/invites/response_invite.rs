@@ -9,7 +9,7 @@ use validator::{Validate, ValidationError};
 
 use crate::{
     error::validation_error::ValidationError as CustomValidationError,
-    prisma_client::client::{invites, users_rooms},
+    prisma_client::client::{invites, rooms, users_rooms},
     rejection::{json::CustomJsonDataRejection, path::CustomPathDataRejection},
     shared::arc_clients::State as AppState,
 };
@@ -66,6 +66,10 @@ pub async fn invite_response(
                 .find_first(vec![
                     invites::id::equals(invite_id),
                     invites::room_id::equals(participant.room_id),
+                    // invite cannot be older than 1 minute
+                    invites::created_at::gt(
+                        (chrono::Utc::now() - chrono::Duration::minutes(1)).into(),
+                    ),
                     invites::user_id::equals(participant.user_id as i32),
                 ])
                 .exec()
@@ -97,6 +101,69 @@ pub async fn invite_response(
                     )
                 }
             };
+            let room = state
+                .prisma_client
+                .rooms()
+                .find_unique(rooms::UniqueWhereParam::IdEquals(participant.room_id))
+                .exec()
+                .await;
+            let is_room_full = state
+                .prisma_client
+                .users_rooms()
+                .count(vec![users_rooms::room_id::equals(participant.room_id)])
+                .exec()
+                .await;
+            let is_room_full = match is_room_full {
+                Ok(is_room_full) => is_room_full >= room.unwrap().unwrap().capacity as i64,
+                Err(_) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(InviteUserResponse {
+                            success: false,
+                            http_code: 500,
+                            error: Some("Internal server error".to_string()),
+                            validation_errors: None,
+                        }),
+                    )
+                }
+            };
+            if is_room_full {
+                let invite = state
+                    .prisma_client
+                    .invites()
+                    .update(
+                        invites::UniqueWhereParam::IdEquals(invite.id),
+                        vec![invites::state::set(
+                            crate::prisma_client::client::InviteState::Declined,
+                        )],
+                    )
+                    .exec()
+                    .await;
+                match invite {
+                    Ok(_) => {}
+                    Err(_) => {
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(InviteUserResponse {
+                                success: false,
+                                http_code: 500,
+                                error: Some("Internal server error".to_string()),
+                                validation_errors: None,
+                            }),
+                        )
+                    }
+                };
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(InviteUserResponse {
+                        success: false,
+                        http_code: 400,
+                        error: Some("Room is full".to_string()),
+                        validation_errors: None,
+                    }),
+                );
+            }
+
             match reaction {
                 InviteUserReaction::Accept => {
                     let invite = state
