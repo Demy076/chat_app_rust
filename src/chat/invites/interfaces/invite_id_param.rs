@@ -2,5 +2,5 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct InviteIdParam {
-    pub invite_id: u32,
+    pub invite_id: String,
 }

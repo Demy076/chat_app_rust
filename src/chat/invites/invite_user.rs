@@ -107,6 +107,7 @@ pub async fn invite_user(
         .create(
             user::UniqueWhereParam::IdEquals(user_id as i32),
             rooms::UniqueWhereParam::IdEquals(participant.room_id),
+            user::UniqueWhereParam::IdEquals(participant.user_id),
             vec![],
         )
         .exec()

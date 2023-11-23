@@ -9,7 +9,7 @@ use validator::{Validate, ValidationError};
 
 use crate::{
     error::validation_error::ValidationError as CustomValidationError,
-    prisma_client::client::users_rooms,
+    prisma_client::client::{invites, users_rooms},
     rejection::{json::CustomJsonDataRejection, path::CustomPathDataRejection},
     shared::arc_clients::State as AppState,
 };
@@ -58,15 +58,122 @@ pub async fn invite_response(
     >,
 ) -> (StatusCode, Json<InviteUserResponse>) {
     match body.validate() {
-        Ok(_) => (
-            StatusCode::OK,
-            Json(InviteUserResponse {
-                success: true,
-                http_code: 200,
-                error: None,
-                validation_errors: None,
-            }),
-        ),
+        Ok(_) => {
+            let reaction = body.reaction.unwrap();
+            let invite = state
+                .prisma_client
+                .invites()
+                .find_first(vec![
+                    invites::id::equals(invite_id),
+                    invites::room_id::equals(participant.room_id),
+                    invites::user_id::equals(participant.user_id as i32),
+                ])
+                .exec()
+                .await;
+            let invite = match invite {
+                Ok(invite) => {
+                    if invite.is_none() {
+                        return (
+                            StatusCode::NOT_FOUND,
+                            Json(InviteUserResponse {
+                                success: false,
+                                http_code: 404,
+                                error: Some("Invite not found".to_string()),
+                                validation_errors: None,
+                            }),
+                        );
+                    }
+                    invite.unwrap()
+                }
+                Err(_) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(InviteUserResponse {
+                            success: false,
+                            http_code: 500,
+                            error: Some("Internal server error".to_string()),
+                            validation_errors: None,
+                        }),
+                    )
+                }
+            };
+            match reaction {
+                InviteUserReaction::Accept => {
+                    let invite = state
+                        .prisma_client
+                        .invites()
+                        .update(
+                            invites::UniqueWhereParam::IdEquals(invite.id),
+                            vec![invites::state::set(
+                                crate::prisma_client::client::InviteState::Accepted,
+                            )],
+                        )
+                        .exec()
+                        .await;
+                    match invite {
+                        Ok(_) => {
+                            return (
+                                StatusCode::OK,
+                                Json(InviteUserResponse {
+                                    success: true,
+                                    http_code: 200,
+                                    error: None,
+                                    validation_errors: None,
+                                }),
+                            );
+                        }
+                        Err(_) => {
+                            return (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(InviteUserResponse {
+                                    success: false,
+                                    http_code: 500,
+                                    error: Some("Internal server error".to_string()),
+                                    validation_errors: None,
+                                }),
+                            )
+                        }
+                    }
+                }
+                InviteUserReaction::Decline => {
+                    let invite = state
+                        .prisma_client
+                        .invites()
+                        .update(
+                            invites::UniqueWhereParam::IdEquals(invite.id),
+                            vec![invites::state::set(
+                                crate::prisma_client::client::InviteState::Declined,
+                            )],
+                        )
+                        .exec()
+                        .await;
+                    match invite {
+                        Ok(_) => {
+                            return (
+                                StatusCode::OK,
+                                Json(InviteUserResponse {
+                                    success: true,
+                                    http_code: 200,
+                                    error: None,
+                                    validation_errors: None,
+                                }),
+                            );
+                        }
+                        Err(_) => {
+                            return (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(InviteUserResponse {
+                                    success: false,
+                                    http_code: 500,
+                                    error: Some("Internal server error".to_string()),
+                                    validation_errors: None,
+                                }),
+                            )
+                        }
+                    }
+                }
+            }
+        }
         Err(validation_errors) => {
             let validation_errors =
                 validation_errors
