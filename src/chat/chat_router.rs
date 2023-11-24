@@ -17,10 +17,7 @@ use super::{
         retrieve_message::retrieve_message, retrieve_messages::retrieve_messages,
         send_message::send_message,
     },
-    middlewares::{
-        is_owner::is_owner,
-        is_participant::{self, is_participant},
-    },
+    middlewares::{is_owner::is_owner, is_participant::is_participant},
     rooms::{
         create_chat::create_chat,
         join_chat::join_chat,
@@ -79,12 +76,12 @@ pub fn moderation_router(state: State) -> Router {
 
 pub fn invites_router(state: State) -> Router {
     Router::new()
-        .route(
-            "/",
-            post(invite_user).layer(from_fn_with_state(state.clone(), is_participant)),
-        )
         .route("/:invite_id", get(retrieve_invite))
         .route("/:invite_id", put(invite_response))
+        .route(
+            "/invite/:user_id",
+            post(invite_user).layer(from_fn_with_state(state.clone(), is_participant)),
+        )
         .layer(ServiceBuilder::new().layer(from_fn_with_state(state.clone(), is_authed)))
         .with_state(state)
 }

@@ -10,7 +10,7 @@ use axum::{
 use axum_extra::extract::WithRejection;
 use serde::Serialize;
 
-use super::interfaces::invite_id_param::{self, InviteIdParam};
+use super::interfaces::invite_id_param::InviteIdParam;
 
 #[derive(Serialize)]
 pub struct Inviter {

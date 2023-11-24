@@ -29,13 +29,12 @@ async fn main() {
 
     let governor = Box::new(
         GovernorConfigBuilder::default()
-            .per_millisecond(400)
+            .per_millisecond(800)
             .burst_size(50)
             .use_headers()
             .finish()
             .expect("Failed to construct Governor config."),
     );
-
     let api_address = "localhost:4466"
         .to_socket_addrs()
         .expect("Failed to parse API address")

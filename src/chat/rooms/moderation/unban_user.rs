@@ -84,6 +84,17 @@ pub async fn unban_user(
                     ));
                 }
             };
+            if user.banned_users_room.clone().unwrap().len() == 0 {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(UnbanUserErrorResponse {
+                        success: false,
+                        http_code: 400,
+                        error: Some("User is not banned".to_string()),
+                        validation_errors: None,
+                    }),
+                ));
+            }
             let user = state
                 .prisma_client
                 .banned_users_room()

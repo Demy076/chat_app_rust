@@ -4,14 +4,16 @@ use axum::{
     Extension, Json,
 };
 use axum_extra::extract::WithRejection;
+use rustis::commands::PubSubCommands;
 use serde::{Deserialize, Serialize};
 use validator::{Validate, ValidationError};
 
 use crate::{
     error::validation_error::ValidationError as CustomValidationError,
-    prisma_client::client::{invites, rooms, users_rooms},
+    prisma_client::client::{invites, rooms, user, users_rooms},
     rejection::{json::CustomJsonDataRejection, path::CustomPathDataRejection},
     shared::arc_clients::State as AppState,
+    socket::interfaces::websocket_message::WebSocketMessage,
 };
 
 use super::interfaces::invite_id_param::InviteIdParam;
@@ -166,6 +168,43 @@ pub async fn invite_response(
 
             match reaction {
                 InviteUserReaction::Accept => {
+                    let participant_insertion = state
+                        .prisma_client
+                        .users_rooms()
+                        .create(
+                            user::UniqueWhereParam::IdEquals(participant.user_id as i32),
+                            rooms::UniqueWhereParam::IdEquals(participant.room_id),
+                            vec![],
+                        )
+                        .exec()
+                        .await;
+                    match participant_insertion {
+                        Ok(_) => {}
+                        Err(_) => {
+                            return (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(InviteUserResponse {
+                                    success: false,
+                                    http_code: 500,
+                                    error: Some("Internal server error".to_string()),
+                                    validation_errors: None,
+                                }),
+                            )
+                        }
+                    };
+                    state
+                    .redis_client
+                    .publish(
+                        format!("chat:{}", participant.user_id),
+                        serde_json::to_string(&WebSocketMessage {
+                            record: crate::socket::interfaces::websocket_message::Records::ParticipantJoined,
+                            data: serde_json::json!({}),
+                            queue: participant.user_id.to_string(),
+                        })
+                        .unwrap(),
+                    )
+                    .await
+                    .unwrap();
                     let invite = state
                         .prisma_client
                         .invites()
